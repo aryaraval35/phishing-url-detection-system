@@ -12,8 +12,26 @@ import pandas as pd
 # In[2]:
 
 
-legitimate_urls = pd.read_csv("legitimate-urls.csv")
-phishing_urls = pd.read_csv("phishing-urls.csv")
+legitimate_urls = pd.read_csv("../extracted_csv_files/legitimate-urls.csv")
+phishing_urls = pd.read_csv("../extracted_csv_files/phishing-urls.csv")
+
+# recompute features for both sets using updated extractor
+from FeatureExtraction import getAttributess
+
+def augment(df):
+    rows = []
+    for _, r in df.iterrows():
+        url = r.get('Domain', '')
+        if not url.startswith('http'):
+            url = 'http://' + url
+        feats = getAttributess(url)
+        rows.append(feats)
+    return pd.concat(rows, ignore_index=True) if rows else pd.DataFrame()
+
+legitimate_urls = augment(legitimate_urls)
+legitimate_urls['label'] = 0
+phishing_urls = augment(phishing_urls)
+phishing_urls['label'] = 1
 
 
 # In[3]:
@@ -30,7 +48,7 @@ print(len(phishing_urls))
 # In[4]:
 
 
-urls = legitimate_urls.append(phishing_urls)
+urls = pd.concat([legitimate_urls, phishing_urls], ignore_index=True)
 
 
 # In[5]:
@@ -50,8 +68,9 @@ print(urls.columns)
 # In[7]:
 
 
-urls = urls.drop(urls.columns[[0,3,5]],axis=1)
-print(urls.columns)
+# drop known non-feature columns; this keeps ssl_certificate and safe_browsing
+urls = urls.drop(columns=['Domain','Path','Protocol'], errors='ignore')
+print("features:", urls.columns)
 
 # #### Since we merged two dataframes top 1000 rows will have legitimate urls and bottom 1000 rows will have phishing urls. So if we split the data now and create a model for it will overfit or underfit so we need to shuffle the rows before splitting the data into training set and test set
 
@@ -101,10 +120,8 @@ from sklearn.metrics import confusion_matrix,accuracy_score
 cm2 = confusion_matrix(labels_test,rf_pred_label)
 print(cm2)
 print(accuracy_score(labels_test,rf_pred_label))
-"""
 # Saving the model to a file
 import pickle
 file_name = "RandomForestModel.sav"
 pickle.dump(RFmodel,open(file_name,'wb'))
-"""
 

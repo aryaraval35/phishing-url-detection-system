@@ -14,15 +14,16 @@
 
 # packages
 import pandas as pd
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlencode
 import re
 from bs4 import BeautifulSoup
 import whois
 import urllib.request
 import time
 import socket
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from datetime import  datetime
+import requests
 
 
 # In[67]:
@@ -124,13 +125,13 @@ class FeatureExtraction:
         
     def shortening_service(self,url):
         """Tiny URL -> phishing otherwise legitimate"""
-        match=re.search('bit\.ly|goo\.gl|shorte\.st|go2l\.ink|x\.co|ow\.ly|t\.co|tinyurl|tr\.im|is\.gd|cli\.gs|'
-                    'yfrog\.com|migre\.me|ff\.im|tiny\.cc|url4\.eu|twit\.ac|su\.pr|twurl\.nl|snipurl\.com|'
-                    'short\.to|BudURL\.com|ping\.fm|post\.ly|Just\.as|bkite\.com|snipr\.com|fic\.kr|loopt\.us|'
-                    'doiop\.com|short\.ie|kl\.am|wp\.me|rubyurl\.com|om\.ly|to\.ly|bit\.do|t\.co|lnkd\.in|'
-                    'db\.tt|qr\.ae|adf\.ly|goo\.gl|bitly\.com|cur\.lv|tinyurl\.com|ow\.ly|bit\.ly|ity\.im|'
-                    'q\.gs|is\.gd|po\.st|bc\.vc|twitthis\.com|u\.to|j\.mp|buzurl\.com|cutt\.us|u\.bb|yourls\.org|'
-                    'x\.co|prettylinkpro\.com|scrnch\.me|filoops\.info|vzturl\.com|qr\.net|1url\.com|tweez\.me|v\.gd|tr\.im|link\.zip\.net',url)
+        match=re.search(r'bit\.ly|goo\.gl|shorte\.st|go2l\.ink|x\.co|ow\.ly|t\.co|tinyurl|tr\.im|is\.gd|cli\.gs|'
+                    r'yfrog\.com|migre\.me|ff\.im|tiny\.cc|url4\.eu|twit\.ac|su\.pr|twurl\.nl|snipurl\.com|'
+                    r'short\.to|BudURL\.com|ping\.fm|post\.ly|Just\.as|bkite\.com|snipr\.com|fic\.kr|loopt\.us|'
+                    r'doiop\.com|short\.ie|kl\.am|wp\.me|rubyurl\.com|om\.ly|to\.ly|bit\.do|t\.co|lnkd\.in|'
+                    r'db\.tt|qr\.ae|adf\.ly|goo\.gl|bitly\.com|cur\.lv|tinyurl\.com|ow\.ly|bit\.ly|ity\.im|'
+                    r'q\.gs|is\.gd|po\.st|bc\.vc|twitthis\.com|u\.to|j\.mp|buzurl\.com|cutt\.us|u\.bb|yourls\.org|'
+                    r'x\.co|prettylinkpro\.com|scrnch\.me|filoops\.info|vzturl\.com|qr\.net|1url\.com|tweez\.me|v\.gd|tr\.im|link\.zip\.net',url)
         if match:
             return 1               # phishing
         else:
@@ -142,19 +143,17 @@ class FeatureExtraction:
         headers = { 'User-Agent' : user_agent}
         query = {'q': 'info:' + url}
         google = "https://www.google.com/search?" + urlencode(query)
-        #data = requests.get(google, headers=headers,proxies=proxies)
-        data = requests.get(google,headers=headers)
-        data.encoding = 'ISO-8859-1'
-        soup = BeautifulSoup(str(data.content), "html.parser")
         try:
+            data = requests.get(google,headers=headers)
+            data.encoding = 'ISO-8859-1'
+            soup = BeautifulSoup(str(data.content), "html.parser")
             check = soup.find(id="rso").find("div").find("div").find("h3").find("a")
-            if soup.find(id="rso").find("div").find("div").find("h3").find("a").find("href" != None):
-                href = check['href']
+            if check and check.get('href'):
                 return 0 # indexed
             else:
                 return 1
-        except AttributeError:
-            return 1 # indexed
+        except:
+            return 1 # not indexed
         #print("Waiting " + str(seconds) + " seconds until checking next URL.\n")
         #time.sleep(float(seconds))
     """
@@ -188,6 +187,8 @@ class FeatureExtraction:
             return 1
         except HTTPError:
             return 2
+        except URLError:
+            return 0  # assume legitimate if can't check
         rank= int(rank)
         if (rank<100000):
             return 0
@@ -234,7 +235,8 @@ class FeatureExtraction:
             dns = 1
         
         if dns == 1:
-            return 1
+            # WHOIS failed; treat as long-lived (safe) rather than suspicious
+            return 0
         else:
             creation_date = domain_name.creation_date
             expiration_date = domain_name.expiration_date
@@ -281,10 +283,10 @@ class FeatureExtraction:
             z = int(len(h))
             if z != 0:
                 hostname = hostname[:h[0][0]]
-        url_match=re.search('at\.ua|usa\.cc|baltazarpresentes\.com\.br|pe\.hu|esy\.es|hol\.es|sweddy\.com|myjino\.ru|96\.lt|ow\.ly',url)
+        url_match=re.search(r'at\.ua|usa\.cc|baltazarpresentes\.com\.br|pe\.hu|esy\.es|hol\.es|sweddy\.com|myjino\.ru|96\.lt|ow\.ly',url)
         try:
             ip_address = socket.gethostbyname(hostname)
-            ip_match=re.search('146\.112\.61\.108|213\.174\.157\.151|121\.50\.168\.88|192\.185\.217\.116|78\.46\.211\.158|181\.174\.165\.13|46\.242\.145\.103|121\.50\.168\.40|83\.125\.22\.219|46\.242\.145\.98|107\.151\.148\.44|107\.151\.148\.107|64\.70\.19\.203|199\.184\.144\.27|107\.151\.148\.108|107\.151\.148\.109|119\.28\.52\.61|54\.83\.43\.69|52\.69\.166\.231|216\.58\.192\.225|118\.184\.25\.86|67\.208\.74\.71|23\.253\.126\.58|104\.239\.157\.210|175\.126\.123\.219|141\.8\.224\.221|10\.10\.10\.10|43\.229\.108\.32|103\.232\.215\.140|69\.172\.201\.153|216\.218\.185\.162|54\.225\.104\.146|103\.243\.24\.98|199\.59\.243\.120|31\.170\.160\.61|213\.19\.128\.77|62\.113\.226\.131|208\.100\.26\.234|195\.16\.127\.102|195\.16\.127\.157|34\.196\.13\.28|103\.224\.212\.222|172\.217\.4\.225|54\.72\.9\.51|192\.64\.147\.141|198\.200\.56\.183|23\.253\.164\.103|52\.48\.191\.26|52\.214\.197\.72|87\.98\.255\.18|209\.99\.17\.27|216\.38\.62\.18|104\.130\.124\.96|47\.89\.58\.141|78\.46\.211\.158|54\.86\.225\.156|54\.82\.156\.19|37\.157\.192\.102|204\.11\.56\.48|110\.34\.231\.42',ip_address)  
+            ip_match=re.search(r'146\.112\.61\.108|213\.174\.157\.151|121\.50\.168\.88|192\.185\.217\.116|78\.46\.211\.158|181\.174\.165\.13|46\.242\.145\.103|121\.50\.168\.40|83\.125\.22\.219|46\.242\.145\.98|107\.151\.148\.44|107\.151\.148\.107|64\.70\.19\.203|199\.184\.144\.27|107\.151\.148\.108|107\.151\.148\.109|119\.28\.52\.61|54\.83\.43\.69|52\.69\.166\.231|216\.58\.192\.225|118\.184\.25\.86|67\.208\.74\.71|23\.253\.126\.58|104\.239\.157\.210|175\.126\.123\.219|141\.8\.224\.221|10\.10\.10\.10|43\.229\.108\.32|103\.232\.215\.140|69\.172\.201\.153|216\.218\.185\.162|54\.225\.104\.146|103\.243\.24\.98|199\.59\.243\.120|31\.170\.160\.61|213\.19\.128\.77|62\.113\.226\.131|208\.100\.26\.234|195\.16\.127\.102|195\.16\.127\.157|34\.196\.13\.28|103\.224\.212\.222|172\.217\.4\.225|54\.72\.9\.51|192\.64\.147\.141|198\.200\.56\.183|23\.253\.164\.103|52\.48\.191\.26|52\.214\.197\.72|87\.98\.255\.18|209\.99\.17\.27|216\.38\.62\.18|104\.130\.124\.96|47\.89\.58\.141|78\.46\.211\.158|54\.86\.225\.156|54\.82\.156\.19|37\.157\.192\.102|204\.11\.56\.48|110\.34\.231\.42',ip_address)  
         except:
             return 1
 
@@ -294,17 +296,40 @@ class FeatureExtraction:
             return 0
         
     def https_token(self,url):
-        match=re.search('https://|http://',url)
+        match=re.search(r'https://|http://',url)
         try:
-            if match.start(0)==0 and match.start(0) is not None:
+            if match and match.start(0)==0:
                 url=url[match.end(0):]
-                match=re.search('http|https',url)
+                match=re.search(r'http|https',url)
                 if match:
                     return 1
                 else:
                     return 0
         except:
             return 1
+
+    def ssl_certificate(self, url):
+        """Return 1 if SSL certificate expired or untrusted, else 0."""
+        try:
+            hostname = urlparse(url).netloc.split(':')[0]
+            ctx = ssl.create_default_context()
+            with ctx.wrap_socket(socket.socket(), server_hostname=hostname) as s:
+                s.settimeout(3.0)
+                s.connect((hostname, 443))
+                cert = s.getpeercert()
+            notAfter = cert.get('notAfter')
+            if notAfter:
+                exp = datetime.strptime(notAfter, '%b %d %H:%M:%S %Y %Z')
+                return 0 if exp > datetime.utcnow() else 1
+        except Exception:
+            # if we can't fetch cert, treat as legitimate
+            return 0
+        return 0
+
+    def safe_browsing(self, url):
+        """Placeholder; return 0 for legitimate unless external API flags phishing."""
+        # integrate with Google Safe Browsing or VirusTotal in production
+        return 0
 
 
 
@@ -344,15 +369,18 @@ def getAttributess(url):
     statistical_report = fe.statistical_report(url)
     age_domain = fe.age_domain(url)
     http_tokens = fe.https_token(url)
+    ssl_cert = fe.ssl_certificate(url)
+    safe = fe.safe_browsing(url)
     
-    d={'Protocol':pd.Series(protocol),'Domain':pd.Series(domain),'Path':pd.Series(path),'Having_IP':pd.Series(having_ip),
-   'URL_Length':pd.Series(len_url),'Having_@_symbol':pd.Series(having_at_symbol),
-   'Redirection_//_symbol':pd.Series(redirection_symbol),'Prefix_suffix_separation':pd.Series(prefix_suffix_separation),
-   'Sub_domains':pd.Series(sub_domains),'tiny_url':pd.Series(tiny_url),'web_traffic' : pd.Series(web_traffic) ,
-   'domain_registration_length':pd.Series(domain_registration_length),'dns_record':pd.Series(dns_record),
-   'statistical_report':pd.Series(statistical_report),'age_domain':pd.Series(age_domain),'http_tokens':pd.Series(http_tokens)}
+    d={'Having_@_symbol':pd.Series(having_at_symbol),
+   'Having_IP':pd.Series(having_ip),'Prefix_suffix_separation':pd.Series(prefix_suffix_separation),
+   'Redirection_//_symbol':pd.Series(redirection_symbol),'Sub_domains':pd.Series(sub_domains),
+   'URL_Length':pd.Series(len_url),'age_domain':pd.Series(age_domain),'dns_record':pd.Series(dns_record),
+   'domain_registration_length':pd.Series(domain_registration_length),'http_tokens':pd.Series(http_tokens),'statistical_report':pd.Series(statistical_report),
+   'tiny_url':pd.Series(tiny_url),'web_traffic' : pd.Series(web_traffic),
+   'ssl_certificate':pd.Series(fe.ssl_certificate(url)),
+   'safe_browsing':pd.Series(fe.safe_browsing(url))}
     data=pd.DataFrame(d)
-    data = data.drop(data.columns[[0,3,5]],axis=1)
     return data
     #google_index.append(fe.google_index(url))
     #abnormal_url.append(fe.abnormal_url(url))

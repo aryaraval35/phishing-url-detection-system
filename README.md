@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 https://chamanthmvs.github.io/Phishing-Website-Detection/
 
 ## Phishing-Website-Detection
@@ -15,3 +16,7 @@ Phishing is one of the luring techniques used by phishing artist in the intentio
 
 
 
+=======
+# phishing-url-detection-system
+Machine learning based phishing website detection system using  Streamlit and FastAPI
+>>>>>>> cde743978c7ca1c5a461982b5a5bf1a9d0fb7262
